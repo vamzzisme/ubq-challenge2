@@ -131,10 +131,10 @@ def confusion(res_dir, out):
 
 
 def ablation(summary, out):
-    exps = [("task3_main", "SSL + refine (main)"), ("task3_no_refine", "SSL, no refine"),
-            ("task3_logreg", "SSL + logreg"), ("task3_random_encoder", "random enc + refine"),
-            ("task3_random_encoder_no_refine", "random enc"),
-            ("task3_handcrafted", "handcrafted + refine"), ("task3_handcrafted_no_refine", "handcrafted")]
+    exps = [("task3_main", "SSL, ensemble + calibration (main)"), ("task3_proto_baseline", "SSL, prototypes (previous main)"),
+            ("task3_no_calibrate", "SSL, no calibration"), ("task3_no_refine", "SSL, no refine"),
+            ("task3_logreg", "SSL + logreg"), ("task3_random_encoder", "random encoder"),
+            ("task3_handcrafted", "handcrafted"), ("task3_ssl_dyn", "SSL, static profile removed")]
     exps = [e for e in exps if e[0] in set(summary.experiment)]
     fig, axes = plt.subplots(1, 2, figsize=(10, 3.4), sharey=True)
     for ax, target in zip(axes, ("A", "B")):

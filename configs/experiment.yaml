@@ -29,7 +29,7 @@ window:
 normalization:
   per_packet_gain: true   # divide each observation by its RMS over data bins
   log: false
-  scope: room             # room | global : per-subcarrier standardisation stats
+  scope: global           # room | global : per-subcarrier standardisation stats (pipeline transforms globally)
   null_bin_rel_level: 0.05  # bins below this fraction of the median dev amplitude
                             # (guard band / DC) are zeroed after normalisation
 

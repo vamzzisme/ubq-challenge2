@@ -104,8 +104,56 @@ class LogRegClassifier:
         return self.m.decision_function(E)
 
 
+def _softmax(s):
+    p = np.exp(s - s.max(1, keepdims=True))
+    return p / p.sum(1, keepdims=True)
+
+
+class EnsembleClassifier:
+    """Average of prototype and logistic-regression class probabilities."""
+
+    def __init__(self):
+        self.parts = [PrototypeClassifier(), LogRegClassifier()]
+
+    def fit(self, E, y, groups):
+        for p in self.parts:
+            p.fit(E, y, groups)
+        self.classes_ = self.parts[0].classes_  # both sort labels the same way
+        return self
+
+    def decision(self, E):
+        P = sum(_softmax(p.decision(E)) for p in self.parts) / len(self.parts)
+        return np.log(np.maximum(P, 1e-12))
+
+
+class BiasedClassifier:
+    """Adds fixed per-class logit offsets to another classifier's scores."""
+
+    def __init__(self, clf, bias):
+        self.clf, self.bias, self.classes_ = clf, bias, clf.classes_
+
+    def decision(self, E):
+        return self.clf.decision(E) + self.bias
+
+
+def class_bias(clf, E_unlab, allowed, n_iter=100):
+    """Per-class logit offsets that make predictions on unlabelled target-dev
+    windows class-balanced (log-domain column scaling, as in Sinkhorn).
+
+    Counters a classifier that sends most target windows to one class (e.g.
+    WALK -> SIT). Fitted on target DEVELOPMENT windows only, never validation.
+    """
+    s = clf.decision(E_unlab)
+    mask = np.isin(clf.classes_, allowed)
+    b = np.zeros(len(clf.classes_))
+    for _ in range(n_iter):
+        p = _softmax(np.where(mask, s + b, -np.inf))
+        b[mask] -= np.log(np.maximum(p[:, mask].mean(0) * mask.sum(), 1e-12))
+    return b
+
+
 def make_classifier(name):
-    return PrototypeClassifier() if name == "proto" else LogRegClassifier()
+    return {"proto": PrototypeClassifier, "ensemble": EnsembleClassifier}.get(name, LogRegClassifier)()
 
 
 def predict_restricted(clf, E, allowed_per_row):
@@ -149,6 +197,9 @@ def refine_prototypes(clf, E_unlab, allowed, E_sup=None, y_sup=None, iters=10, e
     added with weight `support_weight` x (that class's assigned mass). Uses no
     validation data and no target labels beyond the K support captures.
     """
+    if isinstance(clf, EnsembleClassifier):
+        refine_prototypes(clf.parts[0], E_unlab, allowed, E_sup, y_sup, iters, eps, support_weight)
+        return clf
     if not isinstance(clf, PrototypeClassifier):
         return clf
     idx = np.where(np.isin(clf.classes_, allowed))[0]
@@ -186,7 +237,7 @@ def select_support(meta_dev, target, K, seed):
 
 
 def run_episode(E_dev, meta_dev, E_val, meta_val, target, K, seed, routed_rooms,
-                align_stats, classifier="proto", routing="predicted", refine=False):
+                align_stats, classifier="proto", routing="predicted", refine=False, calibrate=False):
     """Fit on source labels + K target support captures, predict target validation.
 
     routing: 'predicted' | 'oracle' | 'none'
@@ -213,11 +264,13 @@ def run_episode(E_dev, meta_dev, E_val, meta_val, target, K, seed, routed_rooms,
     clf = make_classifier(classifier).fit(
         A_dev[train], meta_dev.label.values[train], meta_dev.capture_id.values[train])
 
+    # unlabelled windows recorded during the target-room setup visit
+    unl = (meta_dev.room == target).values & ~sup
+    allowed = clf.classes_ if routing == "none" else ROOM_ACTIVITIES[target]
     if refine:
-        # unlabelled windows recorded during the target-room setup visit
-        unl = (meta_dev.room == target).values & ~sup
-        allowed = clf.classes_ if routing == "none" else ROOM_ACTIVITIES[target]
         clf = refine_prototypes(clf, A_dev[unl], allowed, A_dev[sup], meta_dev.label.values[sup])
+    if calibrate:
+        clf = BiasedClassifier(clf, class_bias(clf, A_dev[unl], allowed))
 
     all_labels = list(clf.classes_)
     allowed = [all_labels if r is None else ROOM_ACTIVITIES[r] for r in val_rooms]

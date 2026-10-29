@@ -32,8 +32,9 @@ import yaml
 sys.path.insert(0, str(Path(__file__).resolve().parent / "src"))
 from csihar.config import EXCLUSIVE, ROOM_ACTIVITIES, ROOMS, load_config, resolve  # noqa: E402
 from csihar.dataset import load_split  # noqa: E402
-from csihar.fewshot import (PrototypeClassifier, apply_alignment, fit_alignment,  # noqa: E402
-                            predict_restricted, refine_prototypes, select_support)
+from csihar.fewshot import (BiasedClassifier, EnsembleClassifier, apply_alignment,  # noqa: E402
+                            class_bias, fit_alignment, predict_restricted, refine_prototypes,
+                            select_support)
 from csihar.inference import canonical_label, capture_windows, find_inputs, load_capture  # noqa: E402
 from csihar.normalization import Normalizer  # noqa: E402
 from csihar.pipeline import artifacts_dir, get_encoder  # noqa: E402
@@ -131,12 +132,13 @@ def main():
         unl = (rooms_dev == target) & ~sup
         print("no episode support given: using K=20 development support captures per exclusive activity")
 
-    clf = PrototypeClassifier().fit(np.concatenate(train_E), np.concatenate(train_y), np.concatenate(train_g))
+    clf = EnsembleClassifier().fit(np.concatenate(train_E), np.concatenate(train_y), np.concatenate(train_g))
     missing = set(EXCLUSIVE[target]) - set(clf.classes_)
     if missing:
         print(f"warning: no support for {sorted(missing)}; those activities cannot be predicted")
     if not args.no_refine:
         clf = refine_prototypes(clf, A_dev[unl], ROOM_ACTIVITIES[target], sup_E, sup_y)
+    clf = BiasedClassifier(clf, class_bias(clf, A_dev[unl], ROOM_ACTIVITIES[target]))
 
     # ---- per-window routing: alignment stats and label space follow the routed room
     Aq = apply_alignment(Eq, routed, stats)

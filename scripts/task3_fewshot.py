@@ -29,19 +29,22 @@ from csihar.room import RoomRouter  # noqa: E402
 # scoring restricted label sets: out-of-room predictions are simply errors
 warnings.filterwarnings("ignore", message="y_pred contains classes not in y_true")
 
-# (name, representation, classifier, refine, routing, alignment); alignment None
-# means the configured default (task3.alignment).
+# (name, representation, classifier, refine, routing, alignment, calibrate);
+# alignment None means the configured default (task3.alignment).
 VARIANTS = [
-    ("main", "ssl", "proto", True, "predicted", None),
-    ("oracle_room", "ssl", "proto", True, "oracle", None),
-    ("no_routing", "ssl", "proto", True, "none", None),
-    ("no_refine", "ssl", "proto", False, "predicted", None),
-    ("diag_alignment", "ssl", "proto", True, "predicted", "diag"),
-    ("logreg", "ssl", "logreg", False, "predicted", None),
-    ("random_encoder", "random", "proto", True, "predicted", None),
-    ("random_encoder_no_refine", "random", "proto", False, "predicted", None),
-    ("handcrafted", "handcrafted", "proto", True, "predicted", None),
-    ("handcrafted_no_refine", "handcrafted", "proto", False, "predicted", None),
+    ("main", "ssl", "ensemble", True, "predicted", None, True),
+    ("proto_baseline", "ssl", "proto", True, "predicted", None, False),  # previous main method
+    ("oracle_room", "ssl", "ensemble", True, "oracle", None, True),
+    ("no_routing", "ssl", "ensemble", True, "none", None, True),
+    ("no_refine", "ssl", "ensemble", False, "predicted", None, True),
+    ("no_calibrate", "ssl", "ensemble", True, "predicted", None, False),
+    ("diag_alignment", "ssl", "ensemble", True, "predicted", "diag", True),
+    ("logreg", "ssl", "logreg", False, "predicted", None, False),
+    ("random_encoder", "random", "ensemble", True, "predicted", None, True),
+    ("random_encoder_no_refine", "random", "ensemble", False, "predicted", None, True),
+    ("handcrafted", "handcrafted", "ensemble", True, "predicted", None, True),
+    ("handcrafted_no_refine", "handcrafted", "ensemble", False, "predicted", None, True),
+    ("ssl_dyn", "ssl_dyn", "ensemble", True, "predicted", None, True),  # static profile removed
 ]
 
 
@@ -64,27 +67,31 @@ def main():
     res_dir = resolve(cfg, "results")
     log = ResultLog(res_dir / "task3_results.csv")
 
-    Zd, md, Zv, mv, _ = load_normalized(cfg)
-    reps = representations(cfg, Zd, Zv, md)
-    router = RoomRouter.load(artifacts_dir(cfg) / "router.pkl")
-    routed, _ = router.predict(Zv)
-    print("router accuracy on validation:", np.mean(routed == mv.room.values))
-
     variants = VARIANTS
     if args.variants:
         keep = set(args.variants.split(","))
         variants = [v for v in VARIANTS if v[0] in keep]
 
+    Zd, md, Zv, mv, _ = load_normalized(cfg)
+    reps = representations(cfg, Zd, Zv, md, kinds=sorted({v[1] for v in variants}))
+    router = RoomRouter.load(artifacts_dir(cfg) / "router.pkl")
+    routed, _ = router.predict(Zv)
+    print("router accuracy on validation:", np.mean(routed == mv.room.values))
+
     Ks, seeds = cfg["task3"]["K"], cfg["task3"]["support_seeds"]
-    for name, rep, method, refine, routing, alignment in variants:
+    cm_rows = []  # K=5 confusion counts summed over support seeds, every variant
+    for name, rep, method, refine, routing, alignment, calibrate in variants:
         Ed, Ev = reps[rep]
         stats = fit_alignment(Ed, md.room.values, alignment or cfg["task3"]["alignment"])
         for target, K, seed in itertools.product(("A", "B"), Ks, seeds):
             r = run_episode(Ed, md, Ev, mv, target, K, seed, routed, stats,
-                            classifier=method, routing=routing, refine=refine)
+                            classifier=method, routing=routing, refine=refine, calibrate=calibrate)
             direction = "B->A" if target == "A" else "A->B"
             for metric, value in score(r, target).items():
                 log.add(f"task3_{name}", metric, value, target_room=target, K=K, seed=seed, notes=direction)
+            if K == 5:
+                cm_rows += [dict(experiment=f"task3_{name}", target_room=target, seed=seed, true=t, pred=p)
+                            for t, p in zip(r["y_true"], r["y_pred"])]
             if name == "main" and seed == seeds[0]:
                 pd.DataFrame(dict(window_id=r["window_id"], room=r["routed_room"], label=r["y_pred"],
                                   confidence=np.round(r["confidence"], 4), true_label=r["y_true"])) \
@@ -101,6 +108,8 @@ def main():
         m = m[(m.experiment == f"task3_{name}") & (m.metric == "macro_f1")]
         print(name, m.groupby(["target_room", "K"]).value.mean().round(3).to_dict(), flush=True)
     log.save()
+    pd.DataFrame(cm_rows).groupby(["experiment", "target_room", "true", "pred"]).size() \
+        .rename("count").reset_index().to_csv(res_dir / "task3_confusion_K5_variants.csv", index=False)
 
     df = pd.DataFrame(log.rows)
     summary = df.groupby(["experiment", "target_room", "K", "metric"]).value.agg(["mean", "std"]).reset_index()

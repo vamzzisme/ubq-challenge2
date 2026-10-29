@@ -59,6 +59,11 @@ def random_encoder(cfg, seed=0):
     return enc
 
 
+def _dynamic(Z):
+    """Remove each window's static per-subcarrier profile (the location cue)."""
+    return Z - Z.mean(1, keepdims=True)
+
+
 def representations(cfg, Zd, Zv, md, kinds=("handcrafted", "random", "ssl"), refresh=False, log=print):
     """Return {kind: (E_dev, E_val)}, cached in artifacts/repr_<kind>.npz."""
     out = {}
@@ -70,6 +75,9 @@ def representations(cfg, Zd, Zv, md, kinds=("handcrafted", "random", "ssl"), ref
             continue
         if kind == "handcrafted":
             Ed, Ev = handcrafted(Zd), handcrafted(Zv)
+        elif kind == "ssl_dyn":
+            enc = get_encoder(cfg, Zd, md, log=log)
+            Ed, Ev = embed(enc, _dynamic(Zd)), embed(enc, _dynamic(Zv))
         elif kind == "random":
             enc = random_encoder(cfg)
             Ed, Ev = embed(enc, Zd), embed(enc, Zv)

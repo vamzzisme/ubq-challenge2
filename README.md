@@ -67,9 +67,9 @@ Each query capture goes through the same decode → QC → window → normalise 
 | Task | Result |
 |---|---|
 | 1. Room fingerprint | accuracy **1.000** on 274 fixed 150 × 256 windows (0.978 from a single observation) |
-| 2. SSL linear probe, macro-F1 | Room A 0.932, Room B 1.000, joint 0.946 (random weights: 0.891 / 0.790 / 0.738; handcrafted: 0.932 / 0.992 / 0.909) |
-| 3. Target A (B→A), macro-F1, K = 1/5/10/20 | primary 0.258 / 0.300 / 0.376 / 0.447; target-exclusive 0.364 / 0.513 / 0.683 / 0.767 |
-| 3. Target B (A→B), macro-F1, K = 1/5/10/20 | primary 0.235 / 0.378 / 0.395 / 0.422; target-exclusive 0.283 / 0.689 / 0.728 / 0.840 |
+| 2. SSL linear probe, macro-F1 | Room A 0.932, Room B 0.992, joint 0.946 (random weights: 0.891 / 0.790 / 0.738; handcrafted: 0.932 / 0.992 / 0.909) |
+| 3. Target A (B→A), macro-F1, K = 1/5/10/20 | primary 0.266 / 0.337 / 0.397 / 0.464; target-exclusive 0.395 / 0.570 / 0.711 / 0.793 |
+| 3. Target B (A→B), macro-F1, K = 1/5/10/20 | primary 0.213 / 0.379 / 0.435 / 0.434; target-exclusive 0.247 / 0.669 / 0.788 / 0.860 |
 
 Task 3 values are means over 5 support seeds. Shared SIT/STAND/WALK, transferred without target labels, stay at chance level. The report explains why: the Room B amplitudes fluctuate from row to row, and Room A activities are tied to locations. Full tables, ablations, and figures are in [report/report.md](report/report.md) and [results/](results/).
 
@@ -88,7 +88,7 @@ src/csihar/
   features.py                handcrafted baseline features
   models.py / ssl.py         temporal CNN encoder, SimCLR training with CSI augmentations
   room.py                    Task 1 router
-  fewshot.py                 Task 3: alignment, prototypes, Sinkhorn refinement, routing, episodes
+  fewshot.py                 Task 3: alignment, prototype + logreg ensemble, Sinkhorn refinement, calibration, routing, episodes
   inference.py               arbitrary-capture loading for run_episode.py
 scripts/                     stage entry points (see table above)
 run_all.py, run_episode.py   orchestration / episode entry point
