@@ -23,7 +23,9 @@ Pipeline for one episode (target room T, source room S, K, seed):
      source-learned shared-class prototypes toward the target room.
 """
 import numpy as np
+from sklearn.cluster import KMeans
 from sklearn.linear_model import LogisticRegression
+from sklearn.preprocessing import StandardScaler
 
 from .config import EXCLUSIVE, ROOM_ACTIVITIES, ROOMS, SHARED
 
@@ -225,6 +227,48 @@ def refine_prototypes(clf, E_unlab, allowed, E_sup=None, y_sup=None, iters=10, e
     return clf
 
 
+# ------------------------------------------------------- shared relabelling
+MOTION_ORDER = ["SIT", "STAND", "WALK"]  # ascending body-motion prior
+
+
+def relabel_shared(pred_unl, pred_q, F_unl, F_q, motion_unl, k=9, seed=0):
+    """Re-assign shared-activity labels from target-room structure.
+
+    Cross-room transfer of SIT/STAND/WALK fails systematically (WALK <-> SIT),
+    while within one room these activities separate well. So the shared label
+    is taken from the target room itself: windows the classifier calls shared
+    are clustered (k-means on standardised features of unlabelled target-dev
+    windows), and each cluster is named by the rank of its median motion score
+    under the physical prior WALK > STAND > SIT (k clusters split in tertiles).
+    A query window predicted as shared takes its nearest cluster's name.
+    k is one cluster count, or several whose relabellings are combined by
+    majority vote (ties go to the middle clustering's label).
+    No target shared labels and no validation data are used for fitting.
+    """
+    if np.ndim(k):
+        P = np.stack([_relabel_once(pred_unl, pred_q, F_unl, F_q, motion_unl, kk, seed) for kk in k])
+        out = P[len(P) // 2].copy()
+        for i in range(P.shape[1]):
+            labels, counts = np.unique(P[:, i], return_counts=True)
+            if counts.max() > 1:
+                out[i] = labels[counts.argmax()]
+        return out
+    return _relabel_once(pred_unl, pred_q, F_unl, F_q, motion_unl, k, seed)
+
+
+def _relabel_once(pred_unl, pred_q, F_unl, F_q, motion_unl, k, seed):
+    pu, pq = np.isin(pred_unl, SHARED), np.isin(pred_q, SHARED)
+    out = np.asarray(pred_q).copy()
+    if pu.sum() < k or not pq.any():
+        return out
+    sc = StandardScaler().fit(F_unl[pu])
+    km = KMeans(k, n_init=10, random_state=seed).fit(sc.transform(F_unl[pu]))
+    med = [np.median(motion_unl[pu][km.labels_ == j]) for j in range(k)]
+    names = {j: MOTION_ORDER[rank * 3 // k] for rank, j in enumerate(np.argsort(med))}
+    out[pq] = [names[j] for j in km.predict(sc.transform(F_q[pq]))]
+    return out
+
+
 # ------------------------------------------------------------------ episodes
 def select_support(meta_dev, target, K, seed):
     """Return capture ids of K support captures per target-exclusive class."""
@@ -237,7 +281,8 @@ def select_support(meta_dev, target, K, seed):
 
 
 def run_episode(E_dev, meta_dev, E_val, meta_val, target, K, seed, routed_rooms,
-                align_stats, classifier="proto", routing="predicted", refine=False, calibrate=False):
+                align_stats, classifier="proto", routing="predicted", refine=False, calibrate=False,
+                relabel=None):
     """Fit on source labels + K target support captures, predict target validation.
 
     routing: 'predicted' | 'oracle' | 'none'
@@ -273,7 +318,21 @@ def run_episode(E_dev, meta_dev, E_val, meta_val, target, K, seed, routed_rooms,
         clf = BiasedClassifier(clf, class_bias(clf, A_dev[unl], allowed))
 
     all_labels = list(clf.classes_)
-    allowed = [all_labels if r is None else ROOM_ACTIVITIES[r] for r in val_rooms]
-    pred, conf = predict_restricted(clf, A_val, allowed)
+    allowed_val = [all_labels if r is None else ROOM_ACTIVITIES[r] for r in val_rooms]
+    pred, conf = predict_restricted(clf, A_val, allowed_val)
+    pred_unl = None
+    if relabel is not None:
+        # relabel = (F_dev, F_val, motion_dev, k, with_emb): clustering features for all
+        # dev/val windows, the dev motion score, cluster count(s), and whether the
+        # aligned embedding is appended; only target-room windows are touched
+        F_dev, F_val, motion_dev, k, with_emb = relabel
+        pred_unl, _ = predict_restricted(clf, A_dev[unl], [allowed] * unl.sum())
+        inroom = np.array([r in (None, target) for r in val_rooms])
+        F_unl, F_q = F_dev[unl], F_val[vm][inroom]
+        if with_emb:
+            F_unl, F_q = np.hstack([F_unl, A_dev[unl]]), np.hstack([F_q, A_val[inroom]])
+        pred = pred.astype(object)
+        pred[inroom] = relabel_shared(pred_unl, pred[inroom], F_unl, F_q, motion_dev[unl], k=k)
     return dict(y_true=meta_val.label.values[vm], y_pred=pred.astype(str), confidence=conf,
-                window_id=meta_val.window_id.values[vm], routed_room=val_rooms, support=support)
+                window_id=meta_val.window_id.values[vm], routed_room=val_rooms, support=support,
+                pred_unl=pred_unl)

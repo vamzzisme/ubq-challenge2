@@ -68,10 +68,10 @@ Each query capture goes through the same decode → QC → window → normalise 
 |---|---|
 | 1. Room fingerprint | accuracy **1.000** on 274 fixed 150 × 256 windows (0.978 from a single observation) |
 | 2. SSL linear probe, macro-F1 | Room A 0.932, Room B 0.992, joint 0.946 (random weights: 0.891 / 0.790 / 0.738; handcrafted: 0.932 / 0.992 / 0.909) |
-| 3. Target A (B→A), macro-F1, K = 1/5/10/20 | primary 0.266 / 0.337 / 0.397 / 0.464; target-exclusive 0.395 / 0.570 / 0.711 / 0.793 |
-| 3. Target B (A→B), macro-F1, K = 1/5/10/20 | primary 0.213 / 0.379 / 0.435 / 0.434; target-exclusive 0.247 / 0.669 / 0.788 / 0.860 |
+| 3. Target A (B→A), macro-F1, K = 1/5/10/20 | primary 0.368 / 0.525 / 0.597 / 0.646; target-exclusive 0.395 / 0.570 / 0.711 / 0.793; shared 0.342 / 0.479 / 0.484 / 0.500 |
+| 3. Target B (A→B), macro-F1, K = 1/5/10/20 | primary 0.338 / 0.596 / 0.647 / 0.707; target-exclusive 0.247 / 0.669 / 0.788 / 0.860; shared 0.400 / 0.546 / 0.553 / 0.605 |
 
-Task 3 values are means over 5 support seeds. Shared SIT/STAND/WALK, transferred without target labels, stay at chance level. The report explains why: the Room B amplitudes fluctuate from row to row, and Room A activities are tied to locations. Full tables, ablations, and figures are in [report/report.md](report/report.md) and [results/](results/).
+Task 3 values are means over 5 support seeds. Shared SIT/STAND/WALK transferred directly from the source room stay at chance level (the Room B amplitudes fluctuate from row to row, and Room A activities are tied to locations). The main method therefore re-assigns them from clusters of the target room's unlabelled development windows, named by a motion prior (WALK > STAND > SIT), without any target shared labels. Full tables, ablations, and figures are in [report/report.md](report/report.md) and [results/](results/).
 
 ## Repository layout
 
@@ -85,10 +85,11 @@ src/csihar/
   ingest.py / splits.py      capture discovery, Room-B validation split (seed 42), intermediate CSVs, manifest
   windowing.py / dataset.py  deterministic 150 x 256 windows + provenance index
   normalization.py           per-packet gain, dev-fitted per-subcarrier standardisation, null-bin masking
-  features.py                handcrafted baseline features
+  features.py                handcrafted baseline features, slow-time motion features
   models.py / ssl.py         temporal CNN encoder, SimCLR training with CSI augmentations
   room.py                    Task 1 router
-  fewshot.py                 Task 3: alignment, prototype + logreg ensemble, Sinkhorn refinement, calibration, routing, episodes
+  fewshot.py                 Task 3: alignment, prototype + logreg ensemble, Sinkhorn refinement, calibration, routing,
+                             shared-activity relabelling, episodes
   inference.py               arbitrary-capture loading for run_episode.py
 scripts/                     stage entry points (see table above)
 run_all.py, run_episode.py   orchestration / episode entry point

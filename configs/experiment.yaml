@@ -50,3 +50,4 @@ task3:
   alignment: coral       # coral (full per-room whitening) | diag (per-room standardisation)
   K: [1, 5, 10, 20]
   support_seeds: [0, 1, 2, 3, 4]
+  relabel_k: [9, 12, 15] # shared-activity relabelling: k-means cluster counts, combined by majority vote

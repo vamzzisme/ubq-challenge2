@@ -17,17 +17,17 @@
     },
     "non_pcap_files": [
       ".DS_Store",
-      "sitdown/.DS_Store",
-      "walk/.DS_Store",
-      "sit/.DS_Store",
-      "standup/.DS_Store",
-      "stand/.DS_Store",
-      "validation/.DS_Store",
-      "validation/sitdown/.DS_Store",
-      "validation/walk/.DS_Store",
-      "validation/sit/.DS_Store",
-      "validation/standup/.DS_Store",
-      "validation/stand/.DS_Store"
+      "sit\\.DS_Store",
+      "sitdown\\.DS_Store",
+      "stand\\.DS_Store",
+      "standup\\.DS_Store",
+      "validation\\.DS_Store",
+      "validation\\sit\\.DS_Store",
+      "validation\\sitdown\\.DS_Store",
+      "validation\\stand\\.DS_Store",
+      "validation\\standup\\.DS_Store",
+      "validation\\walk\\.DS_Store",
+      "walk\\.DS_Store"
     ],
     "udp_payload_lengths": {
       "1042": 234019,

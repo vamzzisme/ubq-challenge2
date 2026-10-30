@@ -29,22 +29,28 @@ from csihar.room import RoomRouter  # noqa: E402
 # scoring restricted label sets: out-of-room predictions are simply errors
 warnings.filterwarnings("ignore", message="y_pred contains classes not in y_true")
 
-# (name, representation, classifier, refine, routing, alignment, calibrate);
-# alignment None means the configured default (task3.alignment).
+# (name, representation, classifier, refine, routing, alignment, calibrate, relabel);
+# alignment None means the configured default (task3.alignment). relabel None
+# keeps the classifier's shared labels; otherwise it names the feature space whose
+# target-room clusters re-assign them: "handcrafted+emb" (handcrafted features plus
+# the variant's aligned embedding), "handcrafted" or "motion".
 VARIANTS = [
-    ("main", "ssl", "ensemble", True, "predicted", None, True),
-    ("proto_baseline", "ssl", "proto", True, "predicted", None, False),  # previous main method
-    ("oracle_room", "ssl", "ensemble", True, "oracle", None, True),
-    ("no_routing", "ssl", "ensemble", True, "none", None, True),
-    ("no_refine", "ssl", "ensemble", False, "predicted", None, True),
-    ("no_calibrate", "ssl", "ensemble", True, "predicted", None, False),
-    ("diag_alignment", "ssl", "ensemble", True, "predicted", "diag", True),
-    ("logreg", "ssl", "logreg", False, "predicted", None, False),
-    ("random_encoder", "random", "ensemble", True, "predicted", None, True),
-    ("random_encoder_no_refine", "random", "ensemble", False, "predicted", None, True),
-    ("handcrafted", "handcrafted", "ensemble", True, "predicted", None, True),
-    ("handcrafted_no_refine", "handcrafted", "ensemble", False, "predicted", None, True),
-    ("ssl_dyn", "ssl_dyn", "ensemble", True, "predicted", None, True),  # static profile removed
+    ("main", "ssl", "ensemble", True, "predicted", None, True, "handcrafted+emb"),
+    ("no_relabel", "ssl", "ensemble", True, "predicted", None, True, None),  # second main method
+    ("relabel_handcrafted", "ssl", "ensemble", True, "predicted", None, True, "handcrafted"),
+    ("proto_baseline", "ssl", "proto", True, "predicted", None, False, None),  # first main method
+    ("relabel_motion", "ssl", "ensemble", True, "predicted", None, True, "motion"),
+    ("oracle_room", "ssl", "ensemble", True, "oracle", None, True, "handcrafted+emb"),
+    ("no_routing", "ssl", "ensemble", True, "none", None, True, "handcrafted+emb"),
+    ("no_refine", "ssl", "ensemble", False, "predicted", None, True, "handcrafted+emb"),
+    ("no_calibrate", "ssl", "ensemble", True, "predicted", None, False, "handcrafted+emb"),
+    ("diag_alignment", "ssl", "ensemble", True, "predicted", "diag", True, "handcrafted+emb"),
+    ("logreg", "ssl", "logreg", False, "predicted", None, False, None),
+    ("random_encoder", "random", "ensemble", True, "predicted", None, True, "handcrafted+emb"),
+    ("random_encoder_no_refine", "random", "ensemble", False, "predicted", None, True, "handcrafted+emb"),
+    ("handcrafted", "handcrafted", "ensemble", True, "predicted", None, True, "handcrafted+emb"),
+    ("handcrafted_no_refine", "handcrafted", "ensemble", False, "predicted", None, True, "handcrafted+emb"),
+    ("ssl_dyn", "ssl_dyn", "ensemble", True, "predicted", None, True, "handcrafted+emb"),  # static profile removed
 ]
 
 
@@ -73,19 +79,25 @@ def main():
         variants = [v for v in VARIANTS if v[0] in keep]
 
     Zd, md, Zv, mv, _ = load_normalized(cfg)
-    reps = representations(cfg, Zd, Zv, md, kinds=sorted({v[1] for v in variants}))
+    reps = representations(cfg, Zd, Zv, md, kinds=sorted({v[1] for v in variants} | {"handcrafted", "motion"}))
+    motion_dev = reps["motion"][0][:, 0]  # slow-motion score that names the shared clusters
     router = RoomRouter.load(artifacts_dir(cfg) / "router.pkl")
     routed, _ = router.predict(Zv)
     print("router accuracy on validation:", np.mean(routed == mv.room.values))
 
     Ks, seeds = cfg["task3"]["K"], cfg["task3"]["support_seeds"]
     cm_rows = []  # K=5 confusion counts summed over support seeds, every variant
-    for name, rep, method, refine, routing, alignment, calibrate in variants:
+    for name, rep, method, refine, routing, alignment, calibrate, relabel_space in variants:
         Ed, Ev = reps[rep]
+        relabel = None
+        if relabel_space is not None:
+            space = relabel_space.removesuffix("+emb")
+            relabel = (*reps[space], motion_dev, cfg["task3"]["relabel_k"], relabel_space.endswith("+emb"))
         stats = fit_alignment(Ed, md.room.values, alignment or cfg["task3"]["alignment"])
         for target, K, seed in itertools.product(("A", "B"), Ks, seeds):
             r = run_episode(Ed, md, Ev, mv, target, K, seed, routed, stats,
-                            classifier=method, routing=routing, refine=refine, calibrate=calibrate)
+                            classifier=method, routing=routing, refine=refine, calibrate=calibrate,
+                            relabel=relabel)
             direction = "B->A" if target == "A" else "A->B"
             for metric, value in score(r, target).items():
                 log.add(f"task3_{name}", metric, value, target_room=target, K=K, seed=seed, notes=direction)

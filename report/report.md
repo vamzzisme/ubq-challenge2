@@ -16,13 +16,13 @@ We built a Python pipeline from the raw challenge package to 150 × 256 amplitud
   - Both rooms are exported in a common 256-column CSV form with a full provenance trail (capture → intermediate CSV → window, plus config hash).
 - **Task 1 (room fingerprint).** **100% validation accuracy** on 274 fixed 150-row windows. The accuracy is still 97.8% from a *single* observation and ≥ 99.6% from 5 observations. Room is close to trivially identifiable, and Section 7 explains why this should not be read as physical room recognition.
 - **Task 2 (SSL).** Linear probes on the frozen SimCLR encoder reach macro-F1 **0.932** (Room A, 6 classes), **0.992** (Room B, 5 classes) and **0.946** (joint, 8 classes). The same architecture with random weights gives 0.891 / 0.790 / 0.738, and handcrafted features give 0.932 / 0.992 / 0.909.
-- **Task 3 (cross-room few-label).** The main method is SSL embeddings, per-room CORAL alignment, a prototype + logistic-regression ensemble, Sinkhorn refinement and class-balance calibration on unlabelled target-development windows, and routing by the predicted room.
-  - **Primary macro-F1 rises with K:** from 0.27 to 0.46 for target A (B→A) and from 0.21 to 0.43 for target B (A→B), for K = 1 → 20.
+- **Task 3 (cross-room few-label).** The main method is SSL embeddings, per-room CORAL alignment, a prototype + logistic-regression ensemble, Sinkhorn refinement and class-balance calibration on unlabelled target-development windows, routing by the predicted room, and **shared-activity relabelling**: SIT/STAND/WALK labels are re-assigned from clusters of the target room's own unlabelled windows, named by a physical motion prior (WALK > STAND > SIT).
+  - **Primary macro-F1 rises with K:** from 0.37 to 0.65 for target A (B→A) and from 0.34 to 0.71 for target B (A→B), for K = 1 → 20.
   - **Target-exclusive macro-F1 rises** from 0.40 to 0.79 (A) and from 0.25 to 0.86 (B).
-  - **Shared SIT/STAND/WALK transferred without target labels stays at or below chance** (macro-F1 0.08–0.20). The errors are a systematic swap (WALK ↔ SIT), not a collapse onto one class.
-  - **Environment-aware routing is the largest contributor:** removing it costs 0.14–0.16 macro-F1 at K = 20.
-  - **SSL pretraining matters most for target B:** 0.43 vs 0.28 for a random encoder at K = 20.
-  - **The ensemble and calibration** raise the average primary macro-F1 over all 8 (target, K) cells from 0.351 (prototype-only method) to 0.366, mainly through the target-exclusive classes.
+  - **Shared SIT/STAND/WALK, without target labels, reach macro-F1 0.34–0.50 (A) and 0.40–0.61 (B)**, up from 0.08–0.20 when they are transferred directly from the source room. Direct transfer fails through a systematic swap (WALK ↔ SIT); relabelling avoids transfer for these classes altogether.
+  - **Relabelling is the largest single gain:** the average primary macro-F1 over all 8 (target, K) cells goes from 0.366 to 0.553.
+  - **Environment-aware routing still matters:** removing it costs 0.14–0.34 macro-F1 at K = 20.
+  - **SSL pretraining matters most for target B:** 0.71 vs 0.52 for a random encoder at K = 20.
 
 ## 2. Data inspection (Hint 1)
 
@@ -74,6 +74,7 @@ Room B .csv ───────▶ 256 amplitude columns ── QC: non-finite
       Task 3: routed room → per-room embedding alignment → prototype + logreg ensemble (source labels + K support)
               → Sinkhorn-balanced refinement + class-balance calibration on unlabelled target-dev windows
               → room-restricted label space
+              → shared SIT/STAND/WALK relabelled from target-room clusters, named by motion rank
                          ▼
                   predictions: window_id, room, label, confidence
 ```
@@ -195,12 +196,19 @@ Self-supervision improves on the random-weight encoder in every within-room sett
    Shared-activity classes are learned from all labelled source-development windows; T-exclusive classes come from the K support captures.
 5. **Transductive refinement.** Soft k-means on the target room's unlabelled development windows (never validation), initialised from the prototypes. A Sinkhorn step balances class marginals, so the in-domain support prototypes cannot absorb every target window. Support means stay as anchors.
 6. **Decision calibration.** Per-class logit offsets are fitted so that the predictions on the target room's unlabelled development windows are class-balanced (log-domain column scaling, as in Sinkhorn). The same offsets are then applied to validation windows. No labels and no validation data are used to fit them.
+7. **Shared-activity relabelling** (`fewshot.relabel_shared`). Steps 1–6 decide *whether* a window is a shared activity well, but transferring *which* shared activity from the source room fails (Section 7). The shared label is therefore taken from the target room itself:
+   - The classifier labels the target room's unlabelled development windows. Those it calls SIT, STAND or WALK are clustered with k-means (k = 9) on standardised handcrafted features.
+   - Each cluster is named by the rank of its median **slow-motion score** under the prior WALK > STAND > SIT: the 3 lowest-motion clusters become SIT, the middle 3 STAND, and the top 3 WALK. The motion score is the temporal std of band-averaged amplitudes after a 9-row moving average. The moving average removes Room B's row-to-row ripple.
+   - A validation window that the classifier calls shared takes the name of its nearest cluster. Target-exclusive predictions are unchanged.
+
+   The prior is physical, not learned: walking moves the whole body, standing involves more postural sway than sitting. It holds in both rooms' development data (median slow-motion score, Room A: WALK 0.259, STAND 0.048, SIT 0.019; Room B: WALK 0.220, STAND 0.203, SIT 0.196; EMPTY rooms are lowest at 0.141). No target shared labels and no validation data are used to fit the clusters or name them.
 
 Ablations, all on validation:
 
 - predicted-room routing vs oracle room vs no routing (pooled alignment, union label space);
 - with vs without refinement, and with vs without calibration;
-- the previous prototype-only method, and a logistic-regression-only head;
+- without relabelling (the previous main method), and relabelling on the 3 motion features instead of handcrafted features;
+- the first prototype-only method, and a logistic-regression-only head;
 - random-weight encoder;
 - handcrafted features;
 - SSL embeddings of windows with their static per-subcarrier profile removed (to test the activity–location confound).
@@ -209,14 +217,16 @@ Ablations, all on validation:
 
 | Metric | Target | K = 1 | K = 5 | K = 10 | K = 20 |
 |---|---|---|---|---|---|
-| primary macro-F1 | A | 0.266 ± 0.048 | 0.337 ± 0.021 | 0.397 ± 0.033 | 0.464 ± 0.026 |
-| | B | 0.213 ± 0.044 | 0.379 ± 0.034 | 0.435 ± 0.029 | 0.434 ± 0.018 |
+| primary macro-F1 | A | 0.368 ± 0.023 | 0.525 ± 0.033 | 0.597 ± 0.019 | 0.646 ± 0.023 |
+| | B | 0.338 ± 0.034 | 0.596 ± 0.059 | 0.647 ± 0.068 | 0.707 ± 0.040 |
 | target-exclusive macro-F1 | A (SIT-DOWN, STAND-UP, FALL) | 0.395 ± 0.068 | 0.570 ± 0.031 | 0.711 ± 0.029 | 0.793 ± 0.035 |
 | | B (EMPTY, LYING) | 0.247 ± 0.045 | 0.669 ± 0.126 | 0.788 ± 0.069 | 0.860 ± 0.040 |
-| shared macro-F1 (no target labels) | A | 0.138 ± 0.059 | 0.104 ± 0.020 | 0.083 ± 0.060 | 0.135 ± 0.042 |
-| | B | 0.191 ± 0.076 | 0.185 ± 0.058 | 0.199 ± 0.075 | 0.151 ± 0.005 |
-| balanced accuracy | A | 0.269 ± 0.054 | 0.336 ± 0.027 | 0.394 ± 0.039 | 0.467 ± 0.031 |
-| | B | 0.227 ± 0.049 | 0.352 ± 0.042 | 0.402 ± 0.043 | 0.400 ± 0.025 |
+| shared macro-F1 (no target labels) | A | 0.342 ± 0.054 | 0.479 ± 0.041 | 0.484 ± 0.015 | 0.500 ± 0.024 |
+| | B | 0.400 ± 0.059 | 0.546 ± 0.087 | 0.553 ± 0.102 | 0.605 ± 0.087 |
+| balanced accuracy | A | 0.366 ± 0.031 | 0.522 ± 0.038 | 0.596 ± 0.027 | 0.646 ± 0.027 |
+| | B | 0.339 ± 0.029 | 0.594 ± 0.057 | 0.638 ± 0.062 | 0.698 ± 0.031 |
+
+Target-exclusive macro-F1 is identical to the previous main method because relabelling only changes windows predicted as a shared activity. The shared F1 grows with K although K labels only exclusive activities: better support makes the shared-vs-exclusive decision cleaner, so the clusters contain fewer exclusive windows.
 
 The label-efficiency curve is `fig_label_efficiency.png`. Per-episode values are in `results/task3_results.csv`.
 
@@ -224,67 +234,66 @@ The label-efficiency curve is `fig_label_efficiency.png`. Per-episode values are
 
 | Target | Routing | K = 1 | K = 5 | K = 10 | K = 20 |
 |---|---|---|---|---|---|
-| A | predicted room (router) | 0.266 | 0.337 | 0.397 | 0.464 |
-| A | oracle room | 0.266 | 0.337 | 0.397 | 0.464 |
-| A | no routing | 0.253 | 0.285 | 0.316 | 0.328 |
-| B | predicted room (router) | 0.213 | 0.379 | 0.435 | 0.434 |
-| B | oracle room | 0.213 | 0.379 | 0.435 | 0.434 |
-| B | no routing | 0.135 | 0.237 | 0.277 | 0.272 |
+| A | predicted room (router) | 0.368 | 0.525 | 0.597 | 0.646 |
+| A | oracle room | 0.368 | 0.525 | 0.597 | 0.646 |
+| A | no routing | 0.404 | 0.391 | 0.468 | 0.504 |
+| B | predicted room (router) | 0.338 | 0.596 | 0.647 | 0.707 |
+| B | oracle room | 0.338 | 0.596 | 0.647 | 0.707 |
+| B | no routing | 0.271 | 0.344 | 0.369 | 0.365 |
 
-Predicted routing is identical to oracle routing because the router is 100% accurate on validation. Removing routing means pooled alignment statistics and the union label space. With pooled statistics, source-room activities (for example EMPTY/LYING for target A) can steal target windows, and target embeddings are not re-centred. This costs up to 0.16 macro-F1.
+Predicted routing is identical to oracle routing because the router is 100% accurate on validation. Removing routing means pooled alignment statistics and the union label space. With pooled statistics, source-room activities (for example EMPTY/LYING for target A) can steal target windows, and target embeddings are not re-centred. This costs up to 0.34 macro-F1 (target B, K = 20). Target A at K = 1 is the one cell where routing does not help (0.404 vs 0.368); with a single support capture per class, the pooled space happens to separate the exclusive classes slightly better.
 
-**Ablations** (primary macro-F1, `fig_ablation.png`):
-
-| Variant | A K=1 | A K=5 | A K=10 | A K=20 | B K=1 | B K=5 | B K=10 | B K=20 |
-|---|---|---|---|---|---|---|---|---|
-Unless the row says otherwise, every variant uses the main method's ensemble head, refinement and calibration.
+**Ablations** (primary macro-F1, `fig_ablation.png`). Unless the row says otherwise, every variant uses the main method's ensemble head, refinement, calibration and relabelling.
 
 | Variant | A K=1 | A K=5 | A K=10 | A K=20 | B K=1 | B K=5 | B K=10 | B K=20 |
 |---|---|---|---|---|---|---|---|---|
-| **main** (SSL, CORAL, ensemble, refine, calibrate, routed) | 0.266 | 0.337 | 0.397 | 0.464 | 0.213 | 0.379 | 0.435 | 0.434 |
-| previous main (prototypes only, no calibration) | 0.258 | 0.300 | 0.376 | 0.447 | 0.235 | 0.378 | 0.395 | 0.422 |
-| no calibration | 0.269 | 0.327 | 0.412 | 0.456 | 0.218 | 0.346 | 0.405 | 0.432 |
-| no refinement | 0.239 | 0.389 | 0.474 | 0.494 | 0.171 | 0.307 | 0.398 | 0.425 |
-| diagonal alignment instead of CORAL | 0.253 | 0.321 | 0.392 | 0.413 | 0.200 | 0.291 | 0.348 | 0.346 |
-| logistic regression only (no refine, no calibration) | 0.249 | 0.385 | 0.469 | 0.484 | 0.147 | 0.325 | 0.384 | 0.417 |
-| random-weight encoder | 0.260 | 0.359 | 0.370 | 0.408 | 0.182 | 0.244 | 0.289 | 0.282 |
-| random-weight encoder, no refine | 0.269 | 0.375 | 0.431 | 0.454 | 0.183 | 0.235 | 0.285 | 0.284 |
-| handcrafted | 0.296 | 0.347 | 0.422 | 0.506 | 0.178 | 0.290 | 0.349 | 0.378 |
-| handcrafted, no refine | 0.254 | 0.335 | 0.396 | 0.443 | 0.229 | 0.301 | 0.364 | 0.414 |
-| SSL, static profile removed | 0.215 | 0.275 | 0.338 | 0.402 | 0.189 | 0.310 | 0.359 | 0.378 |
+| **main** (SSL, CORAL, ensemble, refine, calibrate, routed, relabel) | 0.368 | 0.525 | 0.597 | 0.646 | 0.338 | 0.596 | 0.647 | 0.707 |
+| no relabelling (previous main) | 0.266 | 0.337 | 0.397 | 0.464 | 0.213 | 0.379 | 0.435 | 0.434 |
+| first main (prototypes only, no calibration, no relabelling) | 0.258 | 0.300 | 0.376 | 0.447 | 0.235 | 0.378 | 0.395 | 0.422 |
+| relabelling on motion features only | 0.427 | 0.575 | 0.681 | 0.740 | 0.267 | 0.476 | 0.545 | 0.573 |
+| no calibration | 0.424 | 0.524 | 0.587 | 0.647 | 0.309 | 0.515 | 0.594 | 0.702 |
+| no refinement | 0.372 | 0.516 | 0.600 | 0.632 | 0.287 | 0.452 | 0.576 | 0.626 |
+| diagonal alignment instead of CORAL | 0.335 | 0.453 | 0.546 | 0.520 | 0.322 | 0.522 | 0.595 | 0.611 |
+| logistic regression only (no refine, calibration, relabelling) | 0.249 | 0.385 | 0.469 | 0.484 | 0.144 | 0.325 | 0.384 | 0.417 |
+| random-weight encoder | 0.390 | 0.529 | 0.551 | 0.598 | 0.322 | 0.477 | 0.532 | 0.524 |
+| random-weight encoder, no refine | 0.432 | 0.548 | 0.569 | 0.629 | 0.334 | 0.407 | 0.460 | 0.505 |
+| handcrafted | 0.381 | 0.507 | 0.559 | 0.625 | 0.321 | 0.529 | 0.586 | 0.658 |
+| handcrafted, no refine | 0.418 | 0.503 | 0.534 | 0.589 | 0.295 | 0.413 | 0.528 | 0.586 |
+| SSL, static profile removed | 0.272 | 0.391 | 0.404 | 0.448 | 0.307 | 0.491 | 0.537 | 0.591 |
 
 What helps and what does not:
 
-- **Routing is the clearest gain**, in both directions.
-- **SSL pretraining** helps strongly when B is the target (0.38–0.43 vs 0.24–0.29 for a random encoder at K ≥ 5). For target A, SSL, random and handcrafted features are within noise of each other: Room A has only 928 development windows and its exclusive activities are short transitions. Handcrafted features are the best for target A, but the worst for target B among the non-random variants.
-- **CORAL** beats diagonal alignment in all 8 cells.
-- **Sinkhorn refinement** helps target B at every K (+0.01 to +0.07). It hurts target A at K ≥ 5, because it re-assigns ambiguous target windows to the (wrong) shared prototypes.
-- **Ensemble and calibration.** Over all 8 cells, the ensemble alone (no calibration row) averages 0.358, against 0.351 for the previous prototype-only method. Calibration adds +0.03 for target B at K = 5 and 10, and lifts the average to 0.366.
-  - Calibration does **not** fix the shared classes. Their errors are a label swap (target WALK lands on the SIT prototype and vice versa), not a collapse onto one class, and rebalancing the class frequencies cannot undo a swap.
-  - The gain comes from the target-exclusive classes: exclusive macro-F1 rises from 0.513 to 0.570 (A, K = 5) and from 0.728 to 0.788 (B, K = 10).
-- **Removing the static profile** (subtracting each window's per-subcarrier time mean before the SSL encoder) partly undoes the WALK swap: at K = 5, WALK recall is 0.20 (A) and 0.50 (B) instead of about 0. It loses more on every other class, so it is worse overall. This supports the activity–location confound explanation in Section 7.
-- **Disclosure:** the main-method choices (CORAL, refinement, then the ensemble and calibration) were made by comparing variants on validation results, which the protocol allows for design decisions. In particular, the ensemble and calibration were adopted after a first 5-seed comparison against the prototype-only method on the same validation set.
+- **Shared-activity relabelling is the largest gain:** +0.19 primary macro-F1 averaged over the 8 cells (0.366 → 0.553), in every cell. Shared macro-F1 rises from 0.08–0.20 to 0.34–0.61.
+- **Feature space for relabelling.** Clustering on the 3 motion features alone is better for target A (shared F1 0.46–0.69), where WALK is 13× more mobile than SIT. It is worse for target B (0.28–0.38), where the motion gaps are small and the 3 features cannot separate SIT from STAND. Handcrafted features (static profile + per-band motion) are the better single choice for both rooms. We use one setting for both directions rather than a per-room choice tuned on validation.
+- **Routing** helps in 7 of 8 cells, by up to 0.34.
+- **SSL pretraining** helps strongly when B is the target (0.60–0.71 vs 0.48–0.52 for a random encoder at K ≥ 5). For target A, SSL, random and handcrafted features are within noise of each other: Room A has only 928 development windows and its exclusive activities are short transitions.
+- **CORAL** beats diagonal alignment in 7 of 8 cells.
+- **Refinement and calibration** each help target B (+0.02 to +0.12 at K ≥ 5). For target A they are within noise, and at K = 1 calibration costs 0.06.
+- **Removing the static profile** before the SSL encoder is worse in every cell. With relabelling it no longer helps the shared classes either; it only weakens the shared-vs-exclusive decision.
+- **Disclosure:** the main-method choices (CORAL, refinement, the ensemble and calibration, then relabelling) were made by comparing variants on validation results, which the protocol allows for design decisions.
+  - For relabelling we compared cluster feature spaces (motion, SSL, handcrafted, handcrafted + motion), cluster counts (3, 6, 9, 12), k-means vs a Gaussian mixture, and an extra self-training step on the pseudo-labels, all over the same 5 seeds. Handcrafted features with k = 9 were chosen; k = 12 was equivalent (0.555 vs 0.553), and self-training added nothing.
+  - The motion prior was confirmed on the development labels of both rooms before it was used. That is a design decision informed by target-room shared labels, though no such label is used to fit or name any cluster.
 
 **Confusion matrices at K = 5** (support seed 0; `fig_confusion_K5.png`):
 
 | Target A | P | R | F1 |
 |---|---|---|---|
-| SIT | 0.24 | 0.29 | 0.26 |
-| STAND | 0.10 | 0.08 | 0.09 |
-| WALK | 0.00 | 0.00 | 0.00 |
+| SIT | 0.48 | 0.83 | 0.61 |
+| STAND | 0.35 | 0.24 | 0.29 |
+| WALK | 0.92 | 0.44 | 0.59 |
 | SIT-DOWN | 0.44 | 0.44 | 0.44 |
 | STAND-UP | 0.73 | 0.76 | 0.75 |
 | FALL | 0.56 | 0.60 | 0.58 |
 
 | Target B | P | R | F1 |
 |---|---|---|---|
-| SIT | 0.15 | 0.16 | 0.15 |
-| STAND | 0.41 | 0.56 | 0.47 |
-| WALK | 0.00 | 0.00 | 0.00 |
+| SIT | 0.50 | 0.68 | 0.58 |
+| STAND | 0.39 | 0.60 | 0.48 |
+| WALK | 0.72 | 0.52 | 0.60 |
 | EMPTY | 1.00 | 0.84 | 0.91 |
 | LYING | 0.79 | 0.44 | 0.56 |
 
-In both directions, target WALK is mostly predicted as SIT (A: 18/25, B: 14/25), and target-B SIT is mostly predicted as WALK (16/25). Compared with the previous prototype-only method, F1 at seed 0 improves for every target-exclusive class (SIT-DOWN 0.33 → 0.44, STAND-UP 0.70 → 0.75, FALL 0.47 → 0.58, EMPTY 0.88 → 0.91, LYING 0.50 → 0.56). It also improves for target-B STAND (0.38 → 0.47) and target-A SIT (0.16 → 0.26). Target-B SIT drops (0.21 → 0.15).
+Without relabelling, target WALK was predicted almost entirely as SIT (A: 18/25, B: 14/25) and WALK F1 was 0.00 in both rooms. With relabelling, no target WALK window is predicted as SIT in either room. WALK F1 is 0.59 (A) and 0.60 (B), and SIT F1 rises to 0.61 (A) and 0.58 (B). The remaining shared errors are SIT ↔ STAND confusions and shared windows sent to exclusive classes (target-A STAND → FALL/SIT-DOWN 14/25, target-B LYING → STAND/WALK 13/25).
 
 ## Figures
 
@@ -296,25 +305,26 @@ In both directions, target WALK is mostly predicted as SIT (A: 18/25, B: 14/25),
 | ![room vs length](../results/figures/fig_room_vs_length.png) | Environment fingerprint: room accuracy vs window length (fixed validation capture pool). |
 | ![routing](../results/figures/fig_routing.png) | Routing contribution: predicted-room routing vs oracle room vs no routing. |
 | ![confusion](../results/figures/fig_confusion_K5.png) | Confusion matrices at K = 5 with per-activity precision, recall, and F1. |
-| ![ablation](../results/figures/fig_ablation.png) | Ablation of representation, refinement, calibration, and head. |
+| ![ablation](../results/figures/fig_ablation.png) | Ablation of relabelling, representation, refinement, and head. |
 | ![ssl loss](../results/figures/fig_ssl_loss.png) | SSL training loss. |
 
 ## 7. Discussion and known limitations
 
-**Why shared activities do not transfer.** Within a room, activities are easy: probes reach 0.93–0.99 macro-F1. Across rooms, SIT/STAND/WALK transfer at or below chance under every representation and classifier we tried, and the errors are *systematic* (WALK ↔ SIT), not random. Three causes are visible in the data:
+**Why shared activities do not transfer directly.** Within a room, activities are easy: probes reach 0.93–0.99 macro-F1. Across rooms, SIT/STAND/WALK transfer at or below chance under every representation and classifier we tried, and the errors are *systematic* (WALK ↔ SIT), not random. This is why the main method no longer transfers the shared labels and instead names target-room clusters by a motion prior (Section 6, step 7). Three causes are visible in the data:
 
 1. **The two archives are not the same measurement.**
    - Room A's decoded VHT80 frames are smooth in time (consecutive-row correlation 0.999). Motion appears as slow, coherent amplitude changes; WALK has 5–10× the temporal variation of SIT.
    - Room B's supplied amplitudes carry a strong frequency-domain ripple whose phase shifts from row to row (`fig_qc_examples.png`, right). Consecutive rows correlate at only 0.05–0.5, even in an EMPTY room.
    - In Room B the most "variable" classes are SIT and STAND, not WALK. After per-room alignment, "high temporal variation" therefore points to WALK in A but to SIT/STAND in B, which reproduces the observed swap.
-   - We cannot recover phase or undo this from amplitude-only CSVs. Smoothing Room B in time did not make WALK stand out. The rows are also not interleaved streams that could be separated (Section 2): the row-to-row correlation is the same at every lag, so Room B has no temporal motion signal to align with Room A's.
-   - Without target labels for SIT/STAND/WALK, nothing in the data identifies which target cluster corresponds to which source class. A label-free method can balance the predictions (our calibration step does), but it cannot resolve a swap.
+   - We cannot recover phase or undo this from amplitude-only CSVs. The rows are also not interleaved streams that could be separated (Section 2): the row-to-row correlation is the same at every lag, so Room B's motion signal cannot be aligned feature by feature with Room A's.
+   - A weak slow-time signal does survive. After a 9-row moving average, the ordering WALK > STAND > SIT > EMPTY holds in Room B as in Room A, but with gaps of a few percent rather than an order of magnitude. That is too weak to transfer a classifier, but strong enough to *name* clusters. The clusters themselves come from within-room structure, where the classes separate well. A label-free method that only balances predictions (our calibration step) cannot resolve a swap; naming clusters by this prior can.
 2. **Activity–location confound.** Room A activities were recorded in different spatial zones. The static profile partly encodes *where* the person was, and that does not carry over to a room of different geometry.
 3. **Session confound.** The rooms were recorded in separate sessions, so the rooms are trivially separable (Task 1). The alignment statistics remove first- and second-order room differences, but not class-conditional ones.
 
 **What works.**
 
 - Recognising the *target-exclusive* activities from very few captures: 0.67–0.79 macro-F1 at K = 5–10 for target B, and 0.71–0.79 at K = 10–20 for target A.
+- Recognising the shared activities *without* target labels by clustering the target room's unlabelled windows and naming the clusters by a motion prior: shared macro-F1 0.48–0.61 at K ≥ 5.
 - Routing by environment.
 - Self-supervised pretraining, which gives the best within-room representation and the best few-shot behaviour when Room B is the target.
 
@@ -324,13 +334,16 @@ In both directions, target WALK is mostly predicted as SIT (A: 18/25, B: 14/25),
 - One Room A validation capture (`sit201`) has only 2 valid frames and is excluded, leaving 149 Room A validation windows.
 - Results are capture-disjoint but *not* subject-disjoint.
 - Only two environments are available.
-- Validation results guided a small number of design choices (CORAL, refinement, the ensemble head, calibration), so they are not unseen-test estimates.
+- Validation results guided a small number of design choices (CORAL, refinement, the ensemble head, calibration, the relabelling feature space and cluster count), so they are not unseen-test estimates.
 - Calibration assumes the target room's activities are roughly equally frequent. The challenge's validation sets are balanced (25 per class), but a real deployment with a very skewed activity mix would need a prior estimated in other ways.
+- Relabelling relies on the motion prior WALK > STAND > SIT and on clusters splitting into motion tertiles. In Room B the motion gaps are small, so the cluster naming is the fragile step. Activities outside this vocabulary, or a room where people stand very still, could break the ordering. It also needs enough unlabelled target-room recordings of each shared activity to form clusters.
 - The random 80/20 split results in the original paper answer a different question and are not comparable.
 
 **Future work.**
 
-- Transfer through relational structure (for example matching the geometry of target clusters to source class prototypes) rather than absolute feature alignment.
+- Make relabelling more robust: choose the cluster count without validation (for example by a silhouette criterion on unlabelled data), and combine the motion prior with relational structure (matching the geometry of target clusters to source class prototypes).
+- Motion features for Room A and handcrafted features for Room B each do better than either alone; a principled, label-free way to choose the feature space per room would likely help.
+- Two ideas that did not work: anchoring SIT/STAND on the ends of SIT-DOWN/STAND-UP support captures (partial windows embed poorly, and STAND-UP ends land nearest SIT), and self-training a target-room classifier on the relabelled pseudo-labels (no gain).
 - Alignment on the target-exclusive support classes.
 - Recordings of shared activities with complex CSI in both rooms, so that phase-based features can be compared.
 

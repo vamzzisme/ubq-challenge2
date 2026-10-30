@@ -32,9 +32,10 @@ import yaml
 sys.path.insert(0, str(Path(__file__).resolve().parent / "src"))
 from csihar.config import EXCLUSIVE, ROOM_ACTIVITIES, ROOMS, load_config, resolve  # noqa: E402
 from csihar.dataset import load_split  # noqa: E402
+from csihar.features import handcrafted  # noqa: E402
 from csihar.fewshot import (BiasedClassifier, EnsembleClassifier, apply_alignment,  # noqa: E402
                             class_bias, fit_alignment, predict_restricted, refine_prototypes,
-                            select_support)
+                            relabel_shared, select_support)
 from csihar.inference import canonical_label, capture_windows, find_inputs, load_capture  # noqa: E402
 from csihar.normalization import Normalizer  # noqa: E402
 from csihar.pipeline import artifacts_dir, get_encoder  # noqa: E402
@@ -49,6 +50,7 @@ def main():
     ap.add_argument("--out")
     ap.add_argument("--config")
     ap.add_argument("--no-refine", action="store_true")
+    ap.add_argument("--no-relabel", action="store_true", help="keep the classifier's shared labels")
     args = ap.parse_args()
 
     cfg = load_config(args.config)
@@ -144,6 +146,18 @@ def main():
     Aq = apply_alignment(Eq, routed, stats)
     allowed = [[c for c in ROOM_ACTIVITIES[r] if c in clf.classes_] for r in routed]
     labels, conf = predict_restricted(clf, Aq, allowed)
+
+    # ---- shared SIT/STAND/WALK re-assigned from target-room clusters (motion-ranked)
+    if not args.no_relabel:
+        Hd = np.load(art / "repr_handcrafted.npz")["dev"]
+        Md = np.load(art / "repr_motion.npz")["dev"]
+        pred_unl, _ = predict_restricted(clf, A_dev[unl], [ROOM_ACTIVITIES[target]] * unl.sum())
+        inroom = routed == target
+        labels = labels.astype(object)
+        F_unl = np.hstack([Hd[unl], A_dev[unl]])  # handcrafted + aligned SSL embedding
+        F_q = np.hstack([handcrafted(Zq[inroom]), Aq[inroom]])
+        labels[inroom] = relabel_shared(pred_unl, labels[inroom], F_unl, F_q,
+                                        Md[unl, 0], k=cfg["task3"]["relabel_k"])
 
     win_dir = out.parent / (out.stem + "_windows")
     win_dir.mkdir(exist_ok=True)

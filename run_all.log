@@ -1,0 +1,221 @@
+
+=== inspect ===
+{
+  "room_A": {
+    "n_files": 1084,
+    "per_folder": {
+      "fall": 177,
+      "sit": 178,
+      "sitdown": 155,
+      "stand": 115,
+      "standup": 155,
+      "validation/fall": 25,
+      "validation/sit": 25,
+      "validation/sitdown": 25,
+      "validation/stand": 25,
+      "validation/standup": 25,
+      "validation/walk": 25,
+      "walk": 154
+    },
+    "non_pcap_files": [
+      ".DS_Store",
+      "sit\\.DS_Store",
+      "sitdown\\.DS_Store",
+      "stand\\.DS_Store",
+      "standup\\.DS_Store",
+      "validation\\.DS_Store",
+      "validation\\sit\\.DS_Store",
+      "validation\\sitdown\\.DS_Store",
+      "validation\\stand\\.DS_Store",
+      "validation\\standup\\.DS_Store",
+      "validation\\walk\\.DS_Store",
+      "walk\\.DS_Store"
+    ],
+    "udp_payload_lengths": {
+      "1042": 234019,
+      "726": 2
+    },
+    "chip": {
+      "0x6a": 234019
+    },
+    "chanspec": {
+      "0xe02a": 234019
+    },
+    "core_stream": {
+      "core0/ss0": 234019
+    },
+    "packets_per_capture": {
+      "min": 112.0,
+      "median": 221.0,
+      "max": 251.0
+    },
+    "sequenced_frames_per_capture": {
+      "min": 1.0,
+      "median": 111.0,
+      "max": 129.0
+    },
+    "duration_s": {
+      "min": 2.8400590419769287,
+      "median": 3.9242119789123535,
+      "max": 3.9779140949249268
+    },
+    "sequenced_rate_hz": {
+      "min": 0.25380730257307704,
+      "median": 28.291409309503592,
+      "max": 33.123169361982015
+    },
+    "seq_step_top": {
+      "16": 112714,
+      "0": 684,
+      "32": 509,
+      "48": 150,
+      "64": 72,
+      "80": 32
+    },
+    "legacy_content_rule_vs_seq0xffff_agreement": {
+      "min": 0.59375,
+      "median": 0.7633928571428571,
+      "max": 1.0
+    }
+  },
+  "room_B": {
+    "n_files": 1201,
+    "filename_prefixes": {
+      "Empty": 1,
+      "Empty_Amp": 266,
+      "Lying": 1,
+      "Lying_Amp": 350,
+      "Sitting": 1,
+      "Sitting_Amp": 152,
+      "Standing": 1,
+      "Standing_Amp": 220,
+      "Walking": 209
+    },
+    "rows_per_capture": {
+      "500": 1201
+    },
+    "header_first_last_ncols": {
+      "0..255 (256)": 5,
+      "Subcarrier_1..Subcarrier_256 (256)": 1196
+    },
+    "dtypes": {
+      "int64": 1201
+    },
+    "nonfinite_rows": 0,
+    "other_files": [
+      "model_plot_1.png"
+    ]
+  }
+}
+
+=== dataset ===
+captures per room/split/label:
+label             EMPTY  FALL  LYING  SIT  SITDOWN  STAND  STANDUP  WALK
+room split                                                              
+A    development      0   177      0  178      155    115      155   154
+     validation       0    25      0   25       25     25       25    25
+B    development    242     0    326  128        0    196        0   184
+     validation      25     0     25   25        0     25        0    25
+errors: 0
+Empty DataFrame
+Columns: [capture_id, error]
+Index: []
+QC rejections (frames/rows) per room:
+room               A      B
+qc_malformed       2      0
+qc_header          0      0
+qc_legacy20   165209  44425
+qc_zero            0      0
+qc_nonfinite       0      0
+qc_dup_seq       600      0
+qc_dup_row         0      0
+qc_negative        0      0
+valid rows per capture:
+       count        mean       std    min    25%    50%    75%    max
+room                                                                 
+A     1084.0   62.924354  18.75132    1.0   56.0   59.0   64.0  118.0
+B     1201.0  463.009992  51.55025  308.0  425.0  500.0  500.0  500.0
+windows per room/split:
+room  split      
+A     development     928
+      validation      149
+B     development    7534
+      validation      125
+dtype: int64
+window method counts:
+room  method  
+A     resample    1077
+B     slice       7659
+dtype: int64
+
+=== ssl ===
+normalised dev (8462, 150, 256) val (274, 150, 256) (33s)
+  ssl epoch   0 loss 4.8691
+  ssl epoch   5 loss 2.9164
+  ssl epoch  10 loss 2.3816
+  ssl epoch  15 loss 2.2407
+  ssl epoch  20 loss 2.1563
+  ssl epoch  25 loss 2.0317
+  ssl epoch  30 loss 1.9544
+  ssl epoch  35 loss 1.9420
+  ssl epoch  40 loss 1.8757
+  ssl epoch  45 loss 1.8461
+  ssl epoch  50 loss 1.8144
+  ssl epoch  55 loss 1.7913
+  ssl epoch  59 loss 1.8000
+SSL trained (1046s)
+representations cached (1058s)
+
+=== task1 ===
+router accuracy on validation: 1.0000
+room probe on handcrafted: 1.0000
+room probe on random: 1.0000
+room probe on ssl: 1.0000
+{'window_length': 1, 'accuracy': 0.9781021897810219, 'acc_A': 0.959731543624161, 'acc_B': 1.0}
+{'window_length': 2, 'accuracy': 1.0, 'acc_A': 1.0, 'acc_B': 1.0}
+{'window_length': 5, 'accuracy': 0.9963503649635036, 'acc_A': 0.9932885906040269, 'acc_B': 1.0}
+{'window_length': 10, 'accuracy': 0.9963503649635036, 'acc_A': 0.9932885906040269, 'acc_B': 1.0}
+{'window_length': 25, 'accuracy': 1.0, 'acc_A': 1.0, 'acc_B': 1.0}
+{'window_length': 50, 'accuracy': 1.0, 'acc_A': 1.0, 'acc_B': 1.0}
+{'window_length': 100, 'accuracy': 1.0, 'acc_A': 1.0, 'acc_B': 1.0}
+{'window_length': 150, 'accuracy': 1.0, 'acc_A': 1.0, 'acc_B': 1.0}
+
+=== task2 ===
+C:\ubq_chalenge2\.venv\Lib\site-packages\umap\umap_.py:1952: UserWarning: n_jobs value 1 overridden to 1 by setting random_state. Use no seed for parallelism.
+  warn(
+C:\ubq_chalenge2\.venv\Lib\site-packages\umap\umap_.py:1952: UserWarning: n_jobs value 1 overridden to 1 by setting random_state. Use no seed for parallelism.
+  warn(
+handcrafted  room_A         macroF1 0.932  balAcc 0.933
+handcrafted  room_B         macroF1 0.992  balAcc 0.992
+handcrafted  joint          macroF1 0.906  balAcc 0.922
+handcrafted  shared_A_to_B  macroF1 0.167  balAcc 0.333
+handcrafted  shared_B_to_A  macroF1 0.168  balAcc 0.333
+random       room_A         macroF1 0.891  balAcc 0.892
+random       room_B         macroF1 0.782  balAcc 0.784
+random       joint          macroF1 0.738  balAcc 0.771
+random       shared_A_to_B  macroF1 0.167  balAcc 0.333
+random       shared_B_to_A  macroF1 0.168  balAcc 0.333
+ssl          room_A         macroF1 0.932  balAcc 0.933
+ssl          room_B         macroF1 1.000  balAcc 1.000
+ssl          joint          macroF1 0.946  balAcc 0.957
+ssl          shared_A_to_B  macroF1 0.235  balAcc 0.213
+ssl          shared_B_to_A  macroF1 0.175  balAcc 0.280
+
+=== task3 ===
+router accuracy on validation: 1.0
+main {('A', 1): 0.266, ('A', 5): 0.337, ('A', 10): 0.397, ('A', 20): 0.464, ('B', 1): 0.213, ('B', 5): 0.379, ('B', 10): 0.435, ('B', 20): 0.434}
+proto_baseline {('A', 1): 0.258, ('A', 5): 0.3, ('A', 10): 0.376, ('A', 20): 0.447, ('B', 1): 0.235, ('B', 5): 0.378, ('B', 10): 0.395, ('B', 20): 0.422}
+oracle_room {('A', 1): 0.266, ('A', 5): 0.337, ('A', 10): 0.397, ('A', 20): 0.464, ('B', 1): 0.213, ('B', 5): 0.379, ('B', 10): 0.435, ('B', 20): 0.434}
+no_routing {('A', 1): 0.253, ('A', 5): 0.285, ('A', 10): 0.316, ('A', 20): 0.328, ('B', 1): 0.132, ('B', 5): 0.237, ('B', 10): 0.277, ('B', 20): 0.272}
+no_refine {('A', 1): 0.239, ('A', 5): 0.389, ('A', 10): 0.474, ('A', 20): 0.494, ('B', 1): 0.171, ('B', 5): 0.307, ('B', 10): 0.398, ('B', 20): 0.425}
+no_calibrate {('A', 1): 0.269, ('A', 5): 0.328, ('A', 10): 0.412, ('A', 20): 0.456, ('B', 1): 0.218, ('B', 5): 0.346, ('B', 10): 0.405, ('B', 20): 0.432}
+diag_alignment {('A', 1): 0.252, ('A', 5): 0.321, ('A', 10): 0.394, ('A', 20): 0.412, ('B', 1): 0.2, ('B', 5): 0.291, ('B', 10): 0.347, ('B', 20): 0.346}
+logreg {('A', 1): 0.249, ('A', 5): 0.385, ('A', 10): 0.469, ('A', 20): 0.484, ('B', 1): 0.144, ('B', 5): 0.325, ('B', 10): 0.384, ('B', 20): 0.417}
+random_encoder {('A', 1): 0.26, ('A', 5): 0.358, ('A', 10): 0.37, ('A', 20): 0.408, ('B', 1): 0.182, ('B', 5): 0.246, ('B', 10): 0.289, ('B', 20): 0.282}
+random_encoder_no_refine {('A', 1): 0.269, ('A', 5): 0.375, ('A', 10): 0.431, ('A', 20): 0.454, ('B', 1): 0.183, ('B', 5): 0.235, ('B', 10): 0.285, ('B', 20): 0.284}
+handcrafted {('A', 1): 0.296, ('A', 5): 0.347, ('A', 10): 0.422, ('A', 20): 0.506, ('B', 1): 0.178, ('B', 5): 0.29, ('B', 10): 0.349, ('B', 20): 0.378}
+handcrafted_no_refine {('A', 1): 0.254, ('A', 5): 0.335, ('A', 10): 0.396, ('A', 20): 0.443, ('B', 1): 0.229, ('B', 5): 0.301, ('B', 10): 0.364, ('B', 20): 0.414}
+ssl_dyn {('A', 1): 0.215, ('A', 5): 0.275, ('A', 10): 0.338, ('A', 20): 0.403, ('B', 1): 0.189, ('B', 5): 0.31, ('B', 10): 0.359, ('B', 20): 0.378}
+
+=== figures ===
+figures written to C:\ubq_chalenge2\results\figures

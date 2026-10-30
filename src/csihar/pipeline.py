@@ -6,7 +6,7 @@ import torch
 
 from .config import resolve
 from .dataset import load_split
-from .features import handcrafted
+from .features import handcrafted, motion_features
 from .models import CSIEncoder
 from .normalization import Normalizer
 from .ssl import embed, train_ssl
@@ -75,6 +75,8 @@ def representations(cfg, Zd, Zv, md, kinds=("handcrafted", "random", "ssl"), ref
             continue
         if kind == "handcrafted":
             Ed, Ev = handcrafted(Zd), handcrafted(Zv)
+        elif kind == "motion":
+            Ed, Ev = motion_features(Zd), motion_features(Zv)
         elif kind == "ssl_dyn":
             enc = get_encoder(cfg, Zd, md, log=log)
             Ed, Ev = embed(enc, _dynamic(Zd)), embed(enc, _dynamic(Zv))
