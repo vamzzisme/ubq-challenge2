@@ -97,8 +97,10 @@
 % ---- Title ------------------------------------------------------------------
 \title[Cross-Room Few-Shot CSI HAR]{Cross-Room Few-Shot Adaptation}
 \subtitle{WiFi CSI Activity Recognition with Very Few Labels}
-\author[Team]{\textless Team member names\textgreater \\ {\small \textless Roll numbers\textgreater}}
-\institute[IIT Kharagpur]{CS60055 Ubiquitous Computing --- Hackathon Challenge 2\\[2pt]
+\author[Team]{Devank Jain (23EC37006) \\
+  Aditya Srivastava (23EC10095) \\
+  P Vamshi Krishna (23EC10052)}
+\institute[IIT Kharagpur]{CS60055 Ubiquitous Computing -- Hackathon Challenge 2\\[2pt]
   Indian Institute of Technology Kharagpur}
 \date[Autumn 2026]{Autumn 2026-27}
 \titlegraphic{\IfFileExists{kgp_logo.png}{\includegraphics[height=1.3cm]{kgp_logo.png}}{}}
@@ -138,7 +140,7 @@
   \begin{columns}[T]
     \column{0.32\textwidth}\stat[accent]{100\%}{room accuracy}
     \column{0.32\textwidth}\stat[teal]{0.946}{joint linear-probe macro-F1}
-    \column{0.32\textwidth}\stat[violet]{0.79 / 0.86}{exclusive macro-F1 at $K{=}20$ (A / B)}
+    \column{0.32\textwidth}\stat[violet]{0.74 / 0.73}{Task 3 macro-F1 at $K{=}20$ (A / B)}
   \end{columns}
 \end{frame}
 
@@ -146,16 +148,16 @@
 \begin{frame}{Two rooms, two very different archives}
   \begin{columns}[T]
     \column{0.48\textwidth}
-    \begin{card}[accent]{Room A \textbullet{} Experiment 2}
+    \begin{card}[accent]{Room A - Experiment 2}
       \textbf{1,084 raw \texttt{.pcap}} (934 dev + 150 val)\\
-      SIT \textbullet{} STAND \textbullet{} WALK \textbullet{} \textbf{SIT-DOWN \textbullet{} STAND-UP \textbullet{} FALL}\\[3pt]
+      SIT, STAND, WALK, \textbf{SIT-DOWN, STAND-UP, FALL}\\[3pt]
       {\color{muted}Nexmon packets $\rightarrow$ we decode CSI ourselves.\\
       $\approx$3.9\,s per capture; ``30ms'' is the ping interval.}
     \end{card}
     \column{0.48\textwidth}
-    \begin{card}[violet]{Room B \textbullet{} Experiment 3}
+    \begin{card}[violet]{Room B - Experiment 3}
       \textbf{1,201 amplitude \texttt{.csv}} ($500\times256$ each)\\
-      SIT \textbullet{} STAND \textbullet{} WALK \textbullet{} \textbf{EMPTY \textbullet{} LYING}\\[3pt]
+      SIT - STAND , WALK , \textbf{EMPTY , LYING}\\[3pt]
       {\color{muted}Already amplitudes, no timestamps.\\
       Validation: 25/class, seed 42 (we build it).}
     \end{card}
@@ -163,7 +165,7 @@
   \vspace{8pt}
   \centering
   \begin{tikzpicture}[node distance=5mm]
-    \node[blk, minimum width=3.2cm] (hw) {Asus RT-AC86U \textbullet{} BCM4366c0\\5\,GHz \textbullet{} 80\,MHz \textbullet{} 256 subcarriers};
+    \node[blk, minimum width=3.2cm] (hw) {Asus RT-AC86U , BCM4366c0\\5\,GHz , 80\,MHz , 256 subcarriers};
     \node[srcA, left=1.2cm of hw, minimum width=2.6cm] (a) {Room A\\\texttt{pcap} $\rightarrow$ decode};
     \node[srcB, right=1.2cm of hw, minimum width=2.6cm] (b) {Room B\\\texttt{csv} amplitudes};
     \draw[arr] (hw) -- (a); \draw[arr] (hw) -- (b);
@@ -288,7 +290,7 @@
   \begin{columns}[T]
     \column{0.31\textwidth}
     \begin{card}[violet]{Header}
-      magic \texttt{0x1111} \textbullet{} RSSI \textbullet{} MAC \textbullet{} sequence no. \textbullet{} core/stream \textbullet{} chanspec \textbullet{} chip
+      magic \texttt{0x1111} , RSSI , MAC , sequence no. , core/stream , chanspec , chip
     \end{card}
     \column{0.31\textwidth}
     \begin{card}[accent]{Value}
@@ -315,7 +317,7 @@
     {\color{muted}\scriptsize Room B: same rules; legacy-20 removes 7.4\% of rows.}
 
     \column{0.54\textwidth}
-    \begin{card}[bad]{Legacy-20 rule \textbullet{} decided on content}
+    \begin{card}[bad]{Legacy-20 rule , decided on content}
       \centering
       \begin{tikzpicture}[x=0.42cm, y=1.3cm]
         \foreach \v [count=\i] in {0.28,0.24,0.22,0.26}
@@ -353,7 +355,7 @@
       Room A: supplied \texttt{validation/}. Room B: 25/class, sorted names, \texttt{Random(42)}.
     \end{card}
     \begin{card}[good]{Fitted on development only}
-      normaliser \textbullet{} null-bin mask \textbullet{} router \textbullet{} SSL encoder \textbullet{} alignment \textbullet{} refinement \textbullet{} calibration
+      normaliser , null-bin mask , router , SSL encoder , alignment , refinement , calibration , relabel clusters
     \end{card}
 
     \column{0.5\textwidth}
@@ -450,34 +452,69 @@
 \begin{frame}{Task 3: the adapter, step by step}
   \centering
   \begin{tikzpicture}[node distance=4mm, every node/.style={font=\scriptsize}]
-    \tikzset{step/.style={blk, minimum width=2.45cm, minimum height=1.35cm, text width=2.3cm}}
+    \tikzset{step/.style={blk, minimum width=2.2cm, minimum height=1.35cm, text width=2.05cm}}
     \node[step, fill=accent!10, draw=accent] (s1) {\textbf{1 Support}\\$K$ target dev captures per \emph{exclusive} class};
     \node[step, right=of s1, fill=accent!10, draw=accent] (s2) {\textbf{2 Route}\\router picks room $\rightarrow$ stats + label space};
     \node[step, right=of s2, fill=teal!10, draw=teal] (s3) {\textbf{3 Align}\\per-room CORAL whitening (unlabelled dev)};
-    \node[step, below=6mm of s1, fill=violet!10, draw=violet] (s4) {\textbf{4 Ensemble}\\prototypes + logistic regression};
-    \node[step, right=of s4, fill=violet!10, draw=violet] (s5) {\textbf{5 Refine}\\Sinkhorn soft k-means on target dev};
-    \node[step, right=of s5, fill=good!12, draw=good] (s6) {\textbf{6 Calibrate}\\class-balance offsets on target dev};
-    \node[hot, right=6mm of s3, yshift=-9.5mm, minimum height=1.2cm, text width=2.2cm, align=center] (o) {label +\\confidence};
-    \draw[arr] (s1) -- (s2); \draw[arr] (s2) -- (s3);
-    \draw[arr] (s3.south) -- ++(0,-0.15) -| (s4.north);
-    \draw[arr] (s4) -- (s5); \draw[arr] (s5) -- (s6); \draw[arr] (s6.east) -| (o.south);
+    \node[step, right=of s3, fill=violet!10, draw=violet] (s4) {\textbf{4 Ensemble}\\prototypes + logistic regression};
+    \node[step, below=6mm of s1, fill=violet!10, draw=violet] (s5) {\textbf{5 Refine}\\Sinkhorn soft k-means on target dev};
+    \node[step, right=of s5, fill=violet!10, draw=violet] (s6) {\textbf{6 Calibrate}\\class-balance offsets on target dev};
+    \node[step, right=of s6, fill=good!15, draw=good, line width=1pt] (s7) {\textbf{7 Relabel}\\shared classes from target clusters};
+    \node[hot, right=of s7, minimum height=1.35cm, text width=2.05cm, align=center] (o) {label +\\confidence};
+    \draw[arr] (s1) -- (s2); \draw[arr] (s2) -- (s3); \draw[arr] (s3) -- (s4);
+    \draw[arr] (s4.south) -- ++(0,-0.15) -| (s5.north);
+    \draw[arr] (s5) -- (s6); \draw[arr] (s6) -- (s7); \draw[arr] (s7) -- (o);
   \end{tikzpicture}
   \vspace{8pt}
 
   \begin{columns}[T]
     \column{0.48\textwidth}
     \begin{card}[accent]{Source room gives}
-      all labels \textbullet{} shared SIT / STAND / WALK learned \emph{only} here
+      all source labels: decide \emph{whether} a window is a shared activity; step 7 decides \emph{which}
     \end{card}
     \column{0.48\textwidth}
     \begin{card}[bad]{Never used}
-      target SIT/STAND/WALK labels \textbullet{} validation windows for any fitting \textbullet{} metadata
+      target SIT/STAND/WALK labels , validation windows for any fitting , metadata
+    \end{card}
+  \end{columns}
+\end{frame}
+
+% ============================================================== task 3 relabel
+\begin{frame}{Step 7: name the target room's own clusters by motion}
+  \begin{columns}[T]
+    \column{0.5\textwidth}
+    \centering
+    \begin{tikzpicture}[node distance=3mm, every node/.style={font=\scriptsize}]
+      \node[blk] (u) {unlabelled target-dev windows\\the classifier calls \emph{shared}};
+      \node[blk, below=of u, fill=teal!12, draw=teal] (k) {$k$-means on handcrafted +\\aligned SSL features};
+      \node[blk, below=of k, fill=violet!12, draw=violet] (r) {rank clusters by median\\slow-motion score};
+      \node[hot, below=of r] (n) {low third $\rightarrow$ SIT \;\; middle $\rightarrow$ STAND \;\; top $\rightarrow$ WALK};
+      \node[blk, below=of n, fill=good!12, draw=good] (q) {query window $\rightarrow$ nearest cluster's name\\vote over $k = 9, 12, 15$};
+      \draw[arr] (u) -- (k); \draw[arr] (k) -- (r); \draw[arr] (r) -- (n); \draw[arr] (n) -- (q);
+    \end{tikzpicture}
+
+    \column{0.48\textwidth}
+    \begin{card}[violet]{The prior holds in both rooms}
+      \centering
+      \begin{tikzpicture}[x=0.55cm, y=1.6cm, every node/.style={font=\tiny}]
+        % bars scaled to each room's WALK value
+        \foreach \x/\hh/\lab in {0/0.07/SIT,1/0.19/STAND,2/1.0/WALK}
+          {\fill[accent!70] (\x,0) rectangle ++(0.7,\hh); \node[below] at (\x+0.35,0) {\lab};}
+        \node at (1.35,1.15) {\textbf{Room A}};
+        \foreach \x/\hh/\lab in {4.2/0.64/EMPTY,5.2/0.89/SIT,6.2/0.92/STAND,7.2/1.0/WALK}
+          {\fill[violet!70] (\x,0) rectangle ++(0.7,\hh); \node[below] at (\x+0.35,0) {\lab};}
+        \node at (6.05,1.15) {\textbf{Room B}};
+      \end{tikzpicture}\\[2pt]
+      \raggedright{\scriptsize median score / WALK, development data. A: 13$\times$ gap; B: a few percent, after a 9-row moving average.}
+    \end{card}
+    \begin{card}[good]{Why it is legal}
+      No target SIT/STAND/WALK label and no validation window fits or names a cluster. The prior is physical: walking moves the whole body.
     \end{card}
   \end{columns}
 \end{frame}
 
 % ============================================================== task 3 results
-\begin{frame}{Task 3 results: more labels, better exclusive recognition}
+\begin{frame}{Task 3 results: relabelling lifts every cell}
   \begin{columns}[T]
     \column{0.5\textwidth}
     \scriptsize
@@ -485,13 +522,15 @@
       \toprule
       Macro-F1 & Tgt & $K$=1 & 5 & 10 & 20\\
       \midrule
-      primary & A & 0.27 & 0.34 & 0.40 & \textbf{0.46}\\
-       & B & 0.21 & 0.38 & 0.44 & \textbf{0.43}\\
+      primary & A & 0.40 & 0.55 & 0.66 & \textbf{0.74}\\
+       & B & 0.33 & 0.64 & 0.63 & \textbf{0.73}\\
       \addlinespace
-      {\color{good}exclusive} & A & 0.40 & 0.57 & 0.71 & \textbf{0.79}\\
+      exclusive & A & 0.40 & 0.57 & 0.71 & \textbf{0.79}\\
        & B & 0.25 & 0.67 & 0.79 & \textbf{0.86}\\
       \addlinespace
-      {\color{bad}shared} & A & 0.14 & 0.10 & 0.08 & 0.14\\
+      {\color{good}shared} & A & 0.41 & 0.52 & 0.60 & \textbf{0.69}\\
+       & B & 0.39 & 0.61 & 0.53 & \textbf{0.64}\\
+      {\color{bad}\quad no relabel} & A & 0.14 & 0.10 & 0.08 & 0.14\\
        & B & 0.19 & 0.19 & 0.20 & 0.15\\
       \bottomrule
     \end{tabular}\\[3pt]
@@ -499,8 +538,8 @@
     \vspace{4pt}
 
     \begin{columns}
-      \column{0.48\linewidth}\stat[good]{+0.015}{8-cell avg.\ vs prototype-only}
-      \column{0.48\linewidth}\stat[accent]{$-$0.16}{without routing ($K$=20, B)}
+      \column{0.48\linewidth}\stat[good]{0.37 $\rightarrow$ 0.58}{8-cell avg.\ with relabelling}
+      \column{0.48\linewidth}\stat[accent]{$-$0.34}{without routing ($K$=20, B)}
     \end{columns}
     \column{0.48\textwidth}
     \centering\figslot{fig_label_efficiency.png}{\linewidth}{5.6cm}
@@ -515,23 +554,23 @@
     \figslot{fig_ablation.png}{\linewidth}{3.0cm}
     \column{0.49\textwidth}
     \begin{card}[good]{Helps}
-      \textbf{Routing} \quad $+$0.14 / $+$0.16 at $K$=20 (A / B)\\
-      \textbf{SSL encoder} \quad target B 0.43 vs 0.28 random\\
-      \textbf{CORAL} \quad beats diagonal alignment in 8/8 cells\\
-      \textbf{Ensemble + calibration} \quad 0.351 $\rightarrow$ 0.366 avg.
+      \textbf{Relabelling} \quad 0.366 $\rightarrow$ 0.584 avg., all 8 cells\\
+      \textbf{Routing} \quad $+$0.20 / $+$0.34 at $K$=20 (A / B)\\
+      \textbf{SSL encoder} \quad target B 0.73 vs 0.55 random\\
+      \textbf{CORAL} \quad beats diagonal alignment in 8/8 cells
     \end{card}
     \begin{card}[warn]{Mixed}
-      \textbf{Refinement} \quad helps B at every $K$, hurts A at $K\ge5$\\
-      \textbf{Handcrafted} \quad best for A, weak for B
+      \textbf{Motion-only clusters} \quad best for A, weak for B\\
+      \textbf{Refine / calibrate} \quad within noise on average
     \end{card}
-    \begin{card}[bad]{Does not fix shared classes}
-      Removing the static profile lifts WALK recall (0 $\rightarrow$ 0.50 in B) but costs more elsewhere.
+    \begin{card}[bad]{Does not help}
+      Removing the static profile: worse in every cell.
     \end{card}
   \end{columns}
 \end{frame}
 
 % =================================================================== confusion
-\begin{frame}{Confusion at $K=5$: a swap, not a collapse}
+\begin{frame}{Confusion at $K=5$: the swap, and how relabelling fixes it}
   \begin{columns}[T]
     \column{0.52\textwidth}
     \centering\figslot{fig_confusion_K5.png}{\linewidth}{4.0cm}\\[4pt]
@@ -540,11 +579,12 @@
       \toprule
       Target A & F1 & Target B & F1\\
       \midrule
-      SIT-DOWN & 0.33 $\rightarrow$ \textbf{0.44} & EMPTY & 0.88 $\rightarrow$ \textbf{0.91}\\
-      STAND-UP & 0.70 $\rightarrow$ \textbf{0.75} & LYING & 0.50 $\rightarrow$ \textbf{0.56}\\
-      FALL & 0.47 $\rightarrow$ \textbf{0.58} & STAND & 0.38 $\rightarrow$ \textbf{0.47}\\
+      SIT & 0.26 $\rightarrow$ \textbf{0.67} & SIT & 0.15 $\rightarrow$ \textbf{0.71}\\
+      STAND & 0.09 $\rightarrow$ \textbf{0.27} & STAND & 0.47 $\rightarrow$ \textbf{0.64}\\
+      WALK & 0.00 $\rightarrow$ \textbf{0.79} & WALK & 0.00 $\rightarrow$ \textbf{0.79}\\
       \bottomrule
-    \end{tabular}
+    \end{tabular}\\[2pt]
+    {\color{muted}\tiny seed 0, without $\rightarrow$ with relabelling}
     \column{0.46\textwidth}
     \centering
     \begin{tikzpicture}[every node/.style={font=\scriptsize}]
@@ -557,9 +597,11 @@
       \draw[bad, very thick, -{Stealth}] (tSIT) -- (sWALK);
       \draw[good, thick, -{Stealth}] (tSTAND) -- (sSTAND);
     \end{tikzpicture}\\[4pt]
-    \begin{card}[bad]{Why calibration cannot fix it}
-      Target WALK $\rightarrow$ SIT (A 18/25, B 14/25); target-B SIT $\rightarrow$ WALK (16/25).\\[2pt]
-      Clusters exist but carry the \emph{wrong} source label. Balancing counts cannot un-swap them without target labels.
+    \begin{card}[bad]{Direct transfer: a swap}
+      Target WALK $\rightarrow$ SIT (A 18/25, B 14/25). Balancing counts cannot un-swap it.
+    \end{card}
+    \begin{card}[good]{Relabelling}
+      WALK $\rightarrow$ SIT now 0/25 (A), 5/25 (B). Left: target-A STAND $\rightarrow$ exclusive classes (17/25), LYING $\rightarrow$ STAND/WALK (11/25).
     \end{card}
   \end{columns}
 \end{frame}
@@ -587,8 +629,8 @@
       \textbf{2 Location:} Room A activities were done in different zones; the static profile encodes \emph{where}.\\[2pt]
       \textbf{3 Session:} rooms recorded separately; alignment removes room shifts, not class-specific ones.
     \end{card}
-    \begin{card}[good]{What works}
-      Exclusive activities from few captures \textbullet{} routing \textbullet{} SSL for target B
+    \begin{card}[good]{What survives}
+      A weak slow-motion order (WALK $>$ STAND $>$ SIT) in both rooms: too weak to transfer a classifier, enough to \emph{name} clusters.
     \end{card}
   \end{columns}
 \end{frame}
@@ -597,7 +639,7 @@
 \begin{frame}{Reproduce it and run an episode}
   \begin{columns}[T]
     \column{0.5\textwidth}
-    \begin{card}[accent]{Full pipeline \textbullet{} $\approx$70 min on a laptop CPU}
+    \begin{card}[accent]{Full pipeline , $\approx$70 min on a laptop CPU}
       \ttfamily\scriptsize
       python run\_all.py\\
       {\color{muted}\# inspect$\rightarrow$dataset$\rightarrow$ssl$\rightarrow$task1$\rightarrow$task2$\rightarrow$task3$\rightarrow$figures}
@@ -606,7 +648,7 @@
       \ttfamily\scriptsize
       python run\_episode.py --episode DIR\\
       \phantom{python} [--target-room A|B]\\[3pt]
-      {\color{muted}\rmfamily DIR/query/ \textbullet{} .pcap / .csv / .npy\\
+      {\color{muted}\rmfamily DIR/query/ , .pcap / .csv / .npy\\
       DIR/support/<ACTIVITY>/ (optional)}
     \end{card}
     \column{0.48\textwidth}
@@ -635,20 +677,15 @@
     \end{card}
     \column{0.32\textwidth}
     \begin{card}[violet]{Adaptation}
-      Routing + CORAL + ensemble + calibration: exclusive macro-F1 up to 0.79 (A) / 0.86 (B) at $K$=20.
+      Routing + CORAL + ensemble + motion-ranked relabelling: macro-F1 0.74 (A) / 0.73 (B) at $K$=20, shared classes with \emph{zero} target labels.
     \end{card}
   \end{columns}
   \vspace{6pt}
   \begin{card}[bad]{Honest limitation}
-    Shared SIT/STAND/WALK stay at chance: a label swap caused by measurement and location differences, which no label-free method can resolve. Validation guided design choices; results are capture-disjoint, not subject-disjoint.
+    Relabelling relies on the WALK $>$ STAND $>$ SIT prior, which is weak in Room B. Validation guided design choices (incl.\ cluster features and counts); results are capture-disjoint, not subject-disjoint.
   \end{card}
   \vspace{6pt}
-  \begin{columns}[T]
-    \column{0.48\textwidth}
-    {\scriptsize\color{muted}\textbf{Contribution:} \textless who did what\textgreater}
-    \column{0.48\textwidth}
-    {\scriptsize\color{muted}\textbf{AI use:} developed with Claude (Anthropic) via Claude Code; see the report's disclosure section.}
-  \end{columns}
+  {\scriptsize\color{muted}\textbf{AI use:} developed with Claude (Anthropic) via Claude Code; see the report's disclosure section.}
 \end{frame}
 
 \begin{frame}

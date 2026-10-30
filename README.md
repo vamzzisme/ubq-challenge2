@@ -68,8 +68,8 @@ Each query capture goes through the same decode → QC → window → normalise 
 |---|---|
 | 1. Room fingerprint | accuracy **1.000** on 274 fixed 150 × 256 windows (0.978 from a single observation) |
 | 2. SSL linear probe, macro-F1 | Room A 0.932, Room B 0.992, joint 0.946 (random weights: 0.891 / 0.790 / 0.738; handcrafted: 0.932 / 0.992 / 0.909) |
-| 3. Target A (B→A), macro-F1, K = 1/5/10/20 | primary 0.368 / 0.525 / 0.597 / 0.646; target-exclusive 0.395 / 0.570 / 0.711 / 0.793; shared 0.342 / 0.479 / 0.484 / 0.500 |
-| 3. Target B (A→B), macro-F1, K = 1/5/10/20 | primary 0.338 / 0.596 / 0.647 / 0.707; target-exclusive 0.247 / 0.669 / 0.788 / 0.860; shared 0.400 / 0.546 / 0.553 / 0.605 |
+| 3. Target A (B→A), macro-F1, K = 1/5/10/20 | primary 0.402 / 0.546 / 0.658 / 0.740; target-exclusive 0.395 / 0.570 / 0.711 / 0.793; shared 0.408 / 0.523 / 0.604 / 0.688 |
+| 3. Target B (A→B), macro-F1, K = 1/5/10/20 | primary 0.333 / 0.636 / 0.632 / 0.725; target-exclusive 0.247 / 0.669 / 0.788 / 0.860; shared 0.391 / 0.614 / 0.528 / 0.636 |
 
 Task 3 values are means over 5 support seeds. Shared SIT/STAND/WALK transferred directly from the source room stay at chance level (the Room B amplitudes fluctuate from row to row, and Room A activities are tied to locations). The main method therefore re-assigns them from clusters of the target room's unlabelled development windows, named by a motion prior (WALK > STAND > SIT), without any target shared labels. Full tables, ablations, and figures are in [report/report.md](report/report.md) and [results/](results/).
 
