@@ -259,7 +259,7 @@ Predicted routing is identical to oracle routing because the router is 100% accu
 | random-weight encoder | 0.388 | 0.534 | 0.568 | 0.584 | 0.353 | 0.461 | 0.479 | 0.545 |
 | random-weight encoder, no refine | 0.451 | 0.563 | 0.604 | 0.622 | 0.288 | 0.427 | 0.511 | 0.485 |
 | handcrafted | 0.321 | 0.439 | 0.487 | 0.594 | 0.293 | 0.524 | 0.581 | 0.616 |
-| handcrafted, no refine | 0.348 | 0.418 | 0.458 | 0.515 | 0.312 | 0.458 | 0.533 | 0.629 |
+| handcrafted, no refine | 0.348 | 0.418 | 0.458 | 0.515 | 0.311 | 0.459 | 0.533 | 0.629 |
 | SSL, static profile removed | 0.217 | 0.304 | 0.338 | 0.374 | 0.322 | 0.519 | 0.561 | 0.573 |
 
 What helps and what does not:

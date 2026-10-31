@@ -5,3 +5,19 @@ workspace/
 __pycache__/
 *.pyc
 results/figures/*.png.tmp
+
+# local notes, LaTeX report and slides (kept out of the repo)
+MISTAKES.md
+report/report.tex
+report/slides.tex
+report/*.pdf
+report/*.aux
+report/*.log
+report/*.out
+report/*.toc
+report/*.nav
+report/*.snm
+report/*.fls
+report/*.fdb_latexmk
+report/*.synctex.gz
+.DS_Store
